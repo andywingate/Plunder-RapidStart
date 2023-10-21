@@ -1,73 +1,66 @@
 ﻿using System;
+using System.Xml;
 using System.IO;
-using System.Xml.Linq;
-using System.Linq;
+using System.Text;
 
 class Program
 {
-    static void Main(string[] args)
+    static void Main()
     {
-        Console.Write("Enter the input XML filename: ");
-        string inputFileName = Console.ReadLine();
+        XmlDocument doc = new XmlDocument();
+        doc.Load("med.xml");
 
-        if (File.Exists(inputFileName))
+        XmlNode dataList = doc.SelectSingleNode("/DataList");
+        if (dataList == null)
         {
-            // Load the XML file
-            XDocument xDocument = XDocument.Load(inputFileName);
+            Console.WriteLine("Invalid XML format. The <DataList> element was not found.");
+            return;
+        }
 
-            // Extract the elements from DataList
-            var dataList = xDocument.Root;
-
-            if (dataList != null)
+        foreach (XmlNode list in dataList.ChildNodes)
+        {
+            if (list.NodeType == XmlNodeType.Element)
             {
-                // Iterate through child elements of DataList
-                foreach (var element in dataList.Elements())
+                string listName = list.Name;
+                string fileName = listName + ".csv";
+
+                using (StreamWriter writer = new StreamWriter(fileName))
                 {
-                    if (element.Name == "FixedAssetList" || element.Name == "FADepreciationBookList")
+                    bool isFirstRow = true;
+
+                    foreach (XmlNode item in list.ChildNodes)
                     {
-                        // Extract the TableID
-                        string tableId = element.Element("TableID")?.Value;
-
-                        if (!string.IsNullOrEmpty(tableId))
+                        if (item.NodeType == XmlNodeType.Element)
                         {
-                            string csvFileName = $"{element.Name}_{tableId}.csv";
-
-                            using (StreamWriter writer = new StreamWriter(csvFileName))
+                            if (isFirstRow)
                             {
-                                bool isFirstRow = true;
-
-                                // Iterate through the child elements and write data rows
-                                foreach (var dataElement in element.Elements())
+                                // Write the header row using element names
+                                var header = new StringBuilder();
+                                foreach (XmlNode element in item.ChildNodes)
                                 {
-                                    var dataValues = dataElement.Elements()
-                                        .Select(e => e.Value);
-
-                                    if (isFirstRow)
+                                    if (element.NodeType == XmlNodeType.Element)
                                     {
-                                        // Write the header row for the first element
-                                        var headerRow = dataElement.Elements()
-                                            .Select(e => e.Name.LocalName);
-                                        writer.WriteLine(string.Join(",", headerRow));
-                                        isFirstRow = false;
+                                        header.Append(element.Name).Append(",");
                                     }
-
-                                    writer.WriteLine(string.Join(",", dataValues));
                                 }
+                                writer.WriteLine(header.ToString().TrimEnd(','));
+                                isFirstRow = false;
                             }
 
-                            Console.WriteLine($"{csvFileName} file has been created.");
+                            // Write data row
+                            var dataRow = new StringBuilder();
+                            foreach (XmlNode element in item.ChildNodes)
+                            {
+                                if (element.NodeType == XmlNodeType.Element)
+                                {
+                                    dataRow.Append(element.InnerText).Append(",");
+                                }
+                            }
+                            writer.WriteLine(dataRow.ToString().TrimEnd(','));
                         }
                     }
                 }
             }
-            else
-            {
-                Console.WriteLine("No valid elements found in FixedAssetList or FADepreciationBookList.");
-            }
-        }
-        else
-        {
-            Console.WriteLine("The specified input XML file does not exist.");
         }
     }
 }
