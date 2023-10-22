@@ -1,66 +1,50 @@
 ﻿using System;
-using System.Xml;
 using System.IO;
+using System.Linq;
 using System.Text;
+using System.Xml.Linq;
 
-class Program
+namespace XMLToCSV
 {
-    static void Main()
+    class Program
     {
-        XmlDocument doc = new XmlDocument();
-        doc.Load("med.xml");
-
-        XmlNode dataList = doc.SelectSingleNode("/DataList");
-        if (dataList == null)
+        static void Main()
         {
-            Console.WriteLine("Invalid XML format. The <DataList> element was not found.");
-            return;
-        }
+            var xml = File.ReadAllText("med.xml"); // Assuming XML is saved in "input.xml"
+            var xmlDoc = XDocument.Parse(xml);
 
-        foreach (XmlNode list in dataList.ChildNodes)
-        {
-            if (list.NodeType == XmlNodeType.Element)
+            foreach (var element in xmlDoc.Root.Elements())
             {
-                string listName = list.Name;
-                string fileName = listName + ".csv";
-
-                using (StreamWriter writer = new StreamWriter(fileName))
+                // Create CSV content for each repeating element
+                var csv = ConvertToCSV(element);
+                if (csv != null)
                 {
-                    bool isFirstRow = true;
-
-                    foreach (XmlNode item in list.ChildNodes)
-                    {
-                        if (item.NodeType == XmlNodeType.Element)
-                        {
-                            if (isFirstRow)
-                            {
-                                // Write the header row using element names
-                                var header = new StringBuilder();
-                                foreach (XmlNode element in item.ChildNodes)
-                                {
-                                    if (element.NodeType == XmlNodeType.Element)
-                                    {
-                                        header.Append(element.Name).Append(",");
-                                    }
-                                }
-                                writer.WriteLine(header.ToString().TrimEnd(','));
-                                isFirstRow = false;
-                            }
-
-                            // Write data row
-                            var dataRow = new StringBuilder();
-                            foreach (XmlNode element in item.ChildNodes)
-                            {
-                                if (element.NodeType == XmlNodeType.Element)
-                                {
-                                    dataRow.Append(element.InnerText).Append(",");
-                                }
-                            }
-                            writer.WriteLine(dataRow.ToString().TrimEnd(','));
-                        }
-                    }
+                    File.WriteAllText($"{element.Name}.csv", csv);
                 }
             }
+        }
+
+        private static string ConvertToCSV(XElement element)
+        {
+            // This function will convert an XML element to CSV format
+
+            var subElements = element.Elements();
+            if (!subElements.Any())
+            {
+                return null;
+            }
+
+            var header = string.Join(",", subElements.First().Elements().Select(e => e.Name));
+            var rows = from se in subElements
+                       let row = string.Join(",", se.Elements().Select(e => EscapeCsvValue(e.Value)))
+                       select row;
+
+            return $"{header}\n{string.Join("\n", rows)}";
+        }
+
+        private static string EscapeCsvValue(string value)
+        {
+            return $"\"{value.Replace("\"", "\"\"")}\"";
         }
     }
 }
